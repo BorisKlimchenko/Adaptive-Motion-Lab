@@ -3,6 +3,7 @@ __pycache__/
 *.log
 .DS_Store
 .ipynb_checkpoints/
+.vscode/
 
 # --- 2. Virtual Environments ---
 venv/
@@ -17,7 +18,7 @@ env/
 *.mp3
 *.wav
 *.gif
-assets/renders/  # Папка для тестов
+renders/   # <--- ИСПРАВИЛ ЗДЕСЬ (теперь папка в корне)
 
 # --- 4. Models & Weights ---
 # Веса весят гигабайты. Не грузить!

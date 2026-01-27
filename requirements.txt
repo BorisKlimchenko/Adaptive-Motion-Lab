@@ -1,0 +1,21 @@
+# --- Core Deep Learning ---
+# Базовая библиотека для тензоров и работы с GPU
+torch>=2.1.0 --extra-index-url https://download.pytorch.org/whl/cu121
+
+# --- Generative Models ---
+# Основная библиотека для AnimateDiff и Stable Diffusion
+diffusers>=0.26.0
+
+# Необходима для работы текстовых энкодеров (CLIP) внутри пайплайна
+transformers>=4.38.0
+
+# --- Optimization & Loading ---
+# Критически важна для SurvivalStrategy (enable_model_cpu_offload)
+accelerate>=0.27.0
+
+# Для быстрой и безопасной загрузки весов моделей (.safetensors)
+safetensors>=0.4.2
+
+# --- Utilities ---
+# Для работы с изображениями и видео (используется внутри export_to_gif)
+pillow>=10.0.0
