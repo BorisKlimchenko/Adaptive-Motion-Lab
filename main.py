@@ -195,7 +195,10 @@ class LatentMotionEngine:
             seed = random.randint(0, 2**32 - 1)
 
         logger.info(f"🎲 Seed Locked: {seed}")
-        generator = torch.Generator(self.device).manual_seed(seed)
+        
+        # <<< CRITICAL FIX: Generator must be on CPU for cross-platform reproducibility >>>
+        # Was: generator = torch.Generator(self.device).manual_seed(seed)
+        generator = torch.Generator("cpu").manual_seed(seed)
 
         # E. Execution
         logger.info(f"🎬 Action: {scene_name}")
