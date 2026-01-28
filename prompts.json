@@ -1,34 +1,37 @@
 {
   "system_settings": {
     "project_name": "JEPA_Synthetic_Lab_Simulation",
-    "version": "SMA-01-Beta",
+    "version": "SMA-01-Stable",
     "fps": 8,
-    "width": 896,
-    "height": 512,
-    "aspect_ratio": "16:9",
-    "base_steps": 35,
+    "width": 512,
+    "height": 768,
+    "aspect_ratio": "2:3",
+    "base_steps": 25,
     "guidance_scale": 7.5,
     "scheduler": "EulerDiscreteScheduler"
   },
   "scenes": {
     "Act_1_Chaos": {
+      "id": 1,
       "description": "Dark Ocean of Noise (LLM State)",
-      "positive": "macro shot of boiling black ferrofluid, chaotic turbulent dark ocean, splashing liquid, high contrast, cinematic lighting, 8k, raw texture, nightmare, noise artifacts, storm",
-      "negative": "structure, geometry, straight lines, gold, smooth, calm, blur, stationary, peaceful",
+      "positive": "macro shot of boiling black ferrofluid, chaotic turbulent dark ocean, splashing liquid, high contrast, cinematic lighting, 8k, raw texture, nightmare, noise artifacts, storm, unstable geometry",
+      "negative": "structure, geometry, straight lines, gold, smooth, calm, blur, stationary, peaceful, logical, ordered",
       "motion_scale": 1.4,
       "seed": 42
     },
     "Act_2_JEPA_Flow": {
+      "id": 2,
       "description": "Golden River of Meaning (JEPA State)",
       "positive": "thick golden liquid flowing horizontally, smooth laminar flow, amber biological structure, bioluminescent veins, glowing depth, cinematic slow motion, viscosity, honey, fluid dynamics",
-      "negative": "water, splash, noise, chaotic, fast, jitter, glitch, bubbles, foam, dark",
+      "negative": "water, splash, noise, chaotic, fast, jitter, glitch, bubbles, foam, dark, broken, random",
       "motion_scale": 0.7,
       "seed": 108
     },
     "Act_3_Structure": {
-      "description": "Crystallization of Knowledge",
-      "positive": "abstract neural network forming from liquid gold, growing roots, connectivity, crystallization, sacred geometry, connecting glowing dots, volumetric light, depth of field",
-      "negative": "broken, disconnected, messy, liquid splash, random, dust",
+      "id": 3,
+      "description": "World Model Crystallization",
+      "positive": "abstract neural network forming from liquid gold, growing roots, connectivity, crystallization, sacred geometry, connecting glowing dots, volumetric light, depth of field, hyper-detailed",
+      "negative": "broken, disconnected, messy, liquid splash, random, dust, amorphous",
       "motion_scale": 0.9,
       "seed": 777
     }
