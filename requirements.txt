@@ -1,25 +1,20 @@
-# --- Core Infrastructure (CUDA 12.1) ---
-# Указываем индекс для правильной версии PyTorch с поддержкой GPU
---extra-index-url https://download.pytorch.org/whl/cu121
+# --- Core Infrastructure ---
+# Мы разрешаем любую версию выше 2.1.0, чтобы принять ту (2.5.1), 
+# которую мы принудительно поставили в Лаунчере.
 torch>=2.1.0
+torchvision>=0.16.0
 
 # --- Generative Stack ---
-# Основной движок: AnimateDiff + Stable Diffusion
 diffusers>=0.26.0
-# Текстовые энкодеры (CLIP)
 transformers>=4.38.0
-
-# --- Optimization & Memory Management ---
-# Критически важно для CPU Offload (Survival Strategy)
 accelerate>=0.27.0
-# Безопасная и быстрая загрузка весов
 safetensors>=0.4.2
 
-# --- Performance Kernels ---
-# xFormers нужен для экономии VRAM на T4 (Colab).
-# Устанавливается ТОЛЬКО на Linux, чтобы не ломать локальную установку на Windows.
-xformers>=0.0.24; sys_platform == 'linux'
+# --- Optimization ---
+# xFormers уже установлен в Лаунчере. 
+# Эта строка нужна только для локальной разработки на Linux.
+xformers>=0.0.28; sys_platform == 'linux'
 
-# --- Media Processing ---
-# Обработка кадров и экспорт в GIF
+# --- Utils ---
 pillow>=10.0.0
+numpy>=1.24.0
