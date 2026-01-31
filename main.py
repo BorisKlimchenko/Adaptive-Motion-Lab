@@ -4,7 +4,7 @@ import os
 import logging
 import random
 import warnings
-import argparse  # <--- [NEW] Библиотека для чтения команд из консоли
+import argparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Tuple
@@ -26,16 +26,21 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # --- 2. CONFIGURATION OBJECTS ---
 @dataclass(frozen=True)
 class EngineConfig:
-    """Immutable Configuration for the Inference Pipeline."""
+    """
+    Immutable Configuration for the Inference Pipeline.
+    Acts as the single source of truth for default constants.
+    """
     base_model_id: str = "SG161222/Realistic_Vision_V5.1_noVAE"
     motion_adapter_id: str = "guoyww/animatediff-motion-adapter-v1-5-2"
-    # Дефолтный путь теперь просто страховка
-    default_prompts_path: str = "prompts.json" 
+    default_prompts_path: str = "configs/default_scene.json" 
     output_dir: str = "renders"
     default_negative: str = "bad quality, worse quality, low resolution, watermark, text, error, jpeg artifacts"
 
 # --- 3. HARDWARE ABSTRACTION LAYER (HAL) ---
 class HardwareProfile:
+    """
+    Probes the underlying hardware to determine compute capabilities.
+    """
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.vram_gb = 0.0
@@ -52,10 +57,13 @@ class HardwareProfile:
                 logger.warning(f"Failed to probe CUDA hardware: {e}")
 
     def is_high_performance_node(self) -> bool:
+        """Returns True if the hardware meets Datacenter standards (e.g., A100)."""
         return self.vram_gb > 20.0 and self.compute_capability >= 8.0
 
 # --- 4. STRATEGY PATTERN ---
 class InferenceStrategy(ABC):
+    """Abstract Base Class for hardware-specific optimization strategies."""
+    
     @abstractmethod
     def configure_pipeline(self, pipe: AnimateDiffPipeline, profile: HardwareProfile):
         pass
@@ -65,14 +73,19 @@ class InferenceStrategy(ABC):
         pass
 
 class HighPerformanceStrategy(InferenceStrategy):
+    """Optimization strategy for Datacenter GPUs (A100/H100)."""
+    
     def configure_pipeline(self, pipe: AnimateDiffPipeline, profile: HardwareProfile):
         logger.info(f"🚀 Strategy: DATACENTER MODE ({profile.name}).")
         logger.info("⚡ Optimization: Native PyTorch 2.0 SDPA Active.")
 
     def get_resolution_limit(self) -> Tuple[int, int]:
+        # Note: High resolution generation requires Upscalers in Phase 3
         return (1024, 1024)
 
 class ConsumerStrategy(InferenceStrategy):
+    """Optimization strategy for Consumer GPUs (T4, RTX 30/40 series)."""
+    
     def configure_pipeline(self, pipe: AnimateDiffPipeline, profile: HardwareProfile):
         logger.info(f"🛡️ Strategy: EFFICIENT MODE ({profile.name}).")
         try:
@@ -91,12 +104,18 @@ class ConsumerStrategy(InferenceStrategy):
         return (512, 512)
 
 def strategy_factory(profile: HardwareProfile) -> InferenceStrategy:
+    """Factory method to select the correct strategy based on hardware profile."""
     if profile.is_high_performance_node():
         return HighPerformanceStrategy()
     return ConsumerStrategy()
 
 # --- 5. MAIN ENGINE ---
 class AdaptiveInferenceEngine:
+    """
+    Core Logic Engine.
+    Orchestrates Data Loading -> Pipeline Configuration -> Inference -> Export.
+    """
+    
     def __init__(self, prompts_file: Optional[str] = None):
         """
         Args:
@@ -106,7 +125,7 @@ class AdaptiveInferenceEngine:
         
         self.config = EngineConfig()
         
-        # [NEW] Логика выбора файла
+        # Logic: Determine which configuration file to use
         if prompts_file:
             self.active_prompts_path = prompts_file
             logger.info(f"📂 Custom Prompts File Loaded: {self.active_prompts_path}")
@@ -122,9 +141,12 @@ class AdaptiveInferenceEngine:
         self.pipe = self._build_pipeline()
 
     def _load_prompts(self) -> Dict[str, Any]:
+        """Loads and validates the JSON configuration file."""
         if not os.path.exists(self.active_prompts_path):
-            logger.warning(f"❌ {self.active_prompts_path} missing. Creating default template.")
+            logger.warning(f"❌ Config file '{self.active_prompts_path}' missing. Creating default template.")
             default_data = {"scenes": {}}
+            # Ensure directory exists before writing
+            os.makedirs(os.path.dirname(self.active_prompts_path), exist_ok=True)
             with open(self.active_prompts_path, 'w') as f:
                 json.dump(default_data, f, indent=4)
             return default_data
@@ -137,6 +159,7 @@ class AdaptiveInferenceEngine:
             return {"scenes": {}}
 
     def _build_pipeline(self) -> AnimateDiffPipeline:
+        """Instantiates the Diffusion Pipeline with standard LoRAs/Adapters."""
         dtype = torch.float16 if self.profile.device == "cuda" else torch.float32
         
         adapter = MotionAdapter.from_pretrained(
@@ -162,22 +185,39 @@ class AdaptiveInferenceEngine:
         return pipe
 
     def generate(self, scene_name: str):
+        """
+        Executes the inference loop for a specific scene.
+        
+        Args:
+            scene_name (str): The key identifier for the scene in the JSON config.
+        """
+        # 1. Validation: Check if scene exists
         if scene_name not in self.prompts_db.get('scenes', {}):
-            # Если сцены нет, не крашимся, а просто пишем в лог
+            logger.warning(f"⚠️ Scene '{scene_name}' not found in config. Skipping.")
             return
 
+        # 2. Extract Scene Data
         scene = self.prompts_db['scenes'][scene_name]
         sys_settings = self.prompts_db.get('system_settings', {})
 
+        # 3. Resolution Logic (Safe Bounds Calculation)
         max_w, max_h = self.strategy.get_resolution_limit()
         width = min(sys_settings.get('width', 512), max_w)
         height = min(sys_settings.get('height', 512), max_h)
 
+        # 4. Seed Fixation for Reproducibility
         seed = scene.get('seed', random.randint(0, 2**32-1))
         generator = torch.Generator("cpu").manual_seed(seed)
 
-        logger.info(f"🎬 Rendering: {scene_name} | Res: {width}x{height} | Seed: {seed}")
+        # 5. Motion Scale Extraction (Phase 3 Preparation)
+        # We extract the parameter for logging context, but do not inject it yet.
+        motion_scale = scene.get('motion_scale', 1.0)
 
+        logger.info(f"🎬 Rendering: {scene_name} | Res: {width}x{height} | Seed: {seed}")
+        logger.info(f"🌊 Motion Scale Context: {motion_scale} (Logic Pending Phase 3)")
+
+        # 6. Inference Loop
+        # CRITICAL: We do NOT pass motion_scale to self.pipe() to avoid TypeError.
         output = self.pipe(
             prompt=scene['positive'],
             negative_prompt=scene.get('negative', self.config.default_negative),
@@ -189,6 +229,7 @@ class AdaptiveInferenceEngine:
             height=height,
         )
 
+        # 7. Artifact Export
         os.makedirs(self.config.output_dir, exist_ok=True)
         filename = f"{self.config.output_dir}/{scene_name}_{seed}.gif"
         export_to_gif(output.frames[0], filename)
@@ -196,25 +237,26 @@ class AdaptiveInferenceEngine:
 
 # --- 6. ENTRY POINT (CLI INTERFACE) ---
 if __name__ == "__main__":
-    # 1. Создаем парсер (приемник команд)
-    parser = argparse.ArgumentParser(description="Adaptive Motion Lab - CLI Tool")
+    # 1. Initialize Argument Parser
+    parser = argparse.ArgumentParser(description="Adaptive Motion Lab - CLI Inference Tool")
     
-    # 2. Добавляем "гнездо" для аргумента --prompts
+    # 2. Define Arguments
     parser.add_argument(
         "--prompts", 
         type=str, 
         default=None, 
-        help="Path to the JSON file containing scene definitions (e.g., my_scenes.json)"
+        help="Path to the JSON file containing scene definitions (e.g., configs/my_scenes.json)"
     )
     
-    # 3. Читаем аргументы
+    # 3. Parse Arguments
     args = parser.parse_args()
 
+    # 4. Execution Logic
     if not torch.cuda.is_available():
         logger.error("❌ No CUDA Device detected. Inference is not possible on this machine.")
     else:
         try:
-            # 4. Передаем путь к файлу в движок
+            # Initialize Engine with CLI args
             engine = AdaptiveInferenceEngine(prompts_file=args.prompts)
             
             scenes = engine.prompts_db.get('scenes', {})
@@ -222,6 +264,7 @@ if __name__ == "__main__":
             if not scenes:
                 logger.warning("⚠️ No scenes found to render in the provided JSON.")
             
+            # Iterate through all defined scenes
             for name in scenes.keys():
                 engine.generate(name)
                 
