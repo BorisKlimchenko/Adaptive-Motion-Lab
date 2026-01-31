@@ -73,14 +73,24 @@ class InferenceStrategy(ABC):
         pass
 
 class HighPerformanceStrategy(InferenceStrategy):
-    """Optimization strategy for Datacenter GPUs (A100/H100)."""
+    """
+    Optimization strategy for Datacenter GPUs (A100/H100/4090).
+    Leverages native PyTorch 2.0 SDPA (Scaled Dot Product Attention) for maximum throughput.
+    """
     
     def configure_pipeline(self, pipe: AnimateDiffPipeline, profile: HardwareProfile):
         logger.info(f"🚀 Strategy: DATACENTER MODE ({profile.name}).")
-        logger.info("⚡ Optimization: Native PyTorch 2.0 SDPA Active.")
+        
+        # CRITICAL: Explicitly move the pipeline to CUDA device.
+        # Without this, diffusers may default to CPU offloading, causing massive slowdowns on A100.
+        pipe.to("cuda")
+        
+        # Optimization note: PyTorch 2.0+ automatically uses SDPA (FlashAttention) 
+        # when the model is on CUDA and the hardware supports it (Ampere+).
+        logger.info("⚡ Optimization: Native PyTorch 2.0 SDPA Active + GPU Offload.")
 
     def get_resolution_limit(self) -> Tuple[int, int]:
-        # Note: High resolution generation requires Upscalers in Phase 3
+        # High-end GPUs can handle native 1024x1024 generation without slicing.
         return (1024, 1024)
 
 class ConsumerStrategy(InferenceStrategy):
