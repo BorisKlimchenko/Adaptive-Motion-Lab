@@ -13,36 +13,60 @@
 
 Instead of hardcoding settings, this engine uses a **Strategy Pattern** to detect available VRAM and Compute Capability, dynamically injecting the optimal attention mechanisms (SDPA vs xFormers) and VRAM management policies.
 
-## 🚀 Key Features
+## 🏗️ Architecture
 
-### 1. Hardware-Aware Dispatch (HAL)
-The engine automatically profiles the GPU at runtime:
-* **Ampere+ (A100, A6000, 3090/4090):** Unlocks `HighPerformanceStrategy`. Uses native PyTorch 2.0 SDPA (`F.scaled_dot_product_attention`) for maximum throughput. Disables aggressive offloading to keep latencies low.
-* **Legacy/Consumer (T4, V100, <16GB VRAM):** Activates `SurvivalStrategy`. Enforces `xformers` memory-efficient attention, enables model CPU offload, and applies VAE Slicing/Tiling to prevent OOM (Out-of-Memory) errors.
+The engine implements a **Hardware Abstraction Layer (HAL)** that selects the execution strategy at runtime.
 
-### 2. Deterministic & Reproducible
-* Cross-platform seeding via CPU-based `torch.Generator`.
-* Strict prompt management via JSON configuration.
+```mermaid
+classDiagram
+    %% Core Engine Components
+    class AdaptiveInferenceEngine {
+        +run(scene_name)
+        -_load_prompts()
+        -_build_pipeline()
+    }
 
-### 3. Modular CLI Architecture
-* **Strategy Pattern:** Clean separation of concerns (`HardwareProfile` -> `OptimizationStrategy`).
-* **CLI Support:** Run different experiments using the `--prompts` argument without changing the source code.
+    class HardwareProfile {
+        +device : str
+        +vram_gb : float
+        +compute_capability : float
+        +is_high_performance_node() bool
+    }
 
-## 🛠 Engineering Stack
+    %% Strategy Pattern
+    class InferenceStrategy {
+        <<Interface>>
+        +configure_pipeline()
+        +get_resolution_limit()
+    }
 
-| **Domain** | **Stack & Instrumentation** |
-| :--- | :--- |
-| **Deep Learning** | ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white) ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?logo=pytorch&logoColor=white) ![Diffusers](https://img.shields.io/badge/🤗_Diffusers-v0.25+-FFD21E?logo=huggingface&logoColor=black) ![xFormers](https://img.shields.io/badge/Meta-xFormers-blue) |
-| **Generative R&D** | ![AnimateDiff](https://img.shields.io/badge/Model-AnimateDiff-orange) ![ControlNet](https://img.shields.io/badge/CV-ControlNet-4682B4) ![Stable Diffusion](https://img.shields.io/badge/SD-v1.5%2FXL-4B0082) ![Optimization](https://img.shields.io/badge/Task-Inference_Opt-green) |
-| **Infrastructure** | ![Linux](https://img.shields.io/badge/Linux-Bash-FCC624?logo=linux&logoColor=black) ![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white) ![CUDA](https://img.shields.io/badge/NVIDIA-CUDA_Profiling-76B900?logo=nvidia&logoColor=white) ![Colab](https://img.shields.io/badge/Google-Colab_Pro-F9AB00?logo=googlecolab&logoColor=white) |
-| **Architecture** | ![OOP](https://img.shields.io/badge/Pattern-OOP-lightgrey) ![SOLID](https://img.shields.io/badge/Principle-SOLID-lightgrey) ![Strategy](https://img.shields.io/badge/Design-Strategy_Pattern-9cf) ![Clean Arch](https://img.shields.io/badge/Arch-Clean_Code-success) |
+    class HighPerformanceStrategy {
+        +Native SDPA (FlashAttention)
+        +Max Resolution: 1024x1024
+    }
 
-## 📦 Installation
+    class ConsumerStrategy {
+        +xFormers Memory Efficient
+        +Model CPU Offload
+        +VAE Slicing
+        +Max Resolution: 512x512
+    }
 
-```bash
-# Clone the repository
+    %% Relationships
+    AdaptiveInferenceEngine *-- HardwareProfile : Composition
+    AdaptiveInferenceEngine o-- InferenceStrategy : Aggregation
+    HardwareProfile --> InferenceStrategy : Determines Factory Output
+    InferenceStrategy <|-- HighPerformanceStrategy : Implements
+    InferenceStrategy <|-- ConsumerStrategy : Implements
+🎬 GalleryDemonstration of Adaptive Inference across different complexity levels (Acts):Act 1: Chaos InitializationAct 2: JEPA Flow StateT4 Optimized (Survival Strategy)A100 Optimized (HighPerf Strategy)<details><summary>👁️ <b>Expand Structural Analysis (Act 3)</b></summary>Act 3: Structural Emergence & Stabilization</details>🚀 Key Features1. Hardware-Aware Dispatch (HAL)The engine automatically profiles the GPU at runtime:Ampere+ (A100, A6000, 3090/4090): Unlocks HighPerformanceStrategy. Uses native PyTorch 2.0 SDPA (F.scaled_dot_product_attention) for maximum throughput. Disables aggressive offloading to keep latencies low.Legacy/Consumer (T4, V100, <16GB VRAM): Activates SurvivalStrategy. Enforces xformers memory-efficient attention, enables model CPU offload, and applies VAE Slicing/Tiling to prevent OOM (Out-of-Memory) errors.2. Deterministic & ReproducibleCross-platform seeding via CPU-based torch.Generator.Strict prompt management via JSON configuration.3. Modular CLI ArchitectureStrategy Pattern: Clean separation of concerns (HardwareProfile -> OptimizationStrategy).CLI Support: Run different experiments using the --prompts argument without changing the source code.🛠 Engineering StackDomainStack & InstrumentationDeep LearningGenerative R&DInfrastructureArchitecture📦 Installation & Usage1. Cloud Execution (Google Colab)For users without high-end local GPUs, use the provided launcher:Open notebooks/Colab_Launcher.ipynb in GitHub.Click the "Open in Colab" button (if available) or download the notebook to Drive.2. Local DevelopmentBash# Clone the repository
 git clone [https://github.com/BorisKlimchenko/Adaptive-Motion-Lab.git](https://github.com/BorisKlimchenko/Adaptive-Motion-Lab.git)
 cd Adaptive-Motion-Lab
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Run Inference (using default config)
+python main.py
+
+# Run Inference (using custom config)
+python main.py --prompts configs/default_scene.json
